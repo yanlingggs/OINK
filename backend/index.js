@@ -19,3 +19,6 @@ app.listen(PORT, () => {
 
 const transactionsRouter = require('./routes/transactions');
 app.use('/transactions', transactionsRouter);
+
+const stocksRouter = require('./routes/stocks');
+app.use('/stocks', stocksRouter);
