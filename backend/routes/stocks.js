@@ -36,21 +36,18 @@ router.post('/events', async (req, res) => {
   try {
     await client.query('BEGIN');
 
-    // Insert the event
     const eventResult = await client.query(
       'INSERT INTO stock_events (type, ticker, name, shares, price_per_share, amount, currency, date, note) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *',
       [type, ticker, name, shares, price_per_share, amount, currency, date, note]
     );
 
     if (type === 'buy') {
-      // Check if holding already exists
       const existing = await client.query(
         'SELECT * FROM holdings WHERE ticker = $1',
         [ticker]
       );
 
       if (existing.rows.length > 0) {
-        // Update avg buy price and shares
         const old = existing.rows[0];
         const newShares = parseFloat(old.shares) + parseFloat(shares);
         const newAvg = ((parseFloat(old.shares) * parseFloat(old.avg_buy_price)) + (parseFloat(shares) * parseFloat(price_per_share))) / newShares;
@@ -60,7 +57,6 @@ router.post('/events', async (req, res) => {
           [newShares, newAvg, ticker]
         );
       } else {
-        // Create new holding
         await client.query(
           'INSERT INTO holdings (ticker, name, shares, avg_buy_price, currency, date_bought) VALUES ($1, $2, $3, $4, $5, $6)',
           [ticker, name, shares, price_per_share, currency, date]
@@ -78,10 +74,8 @@ router.post('/events', async (req, res) => {
         const newShares = parseFloat(existing.rows[0].shares) - parseFloat(shares);
 
         if (newShares <= 0) {
-          // Fully sold — remove from holdings
           await client.query('DELETE FROM holdings WHERE ticker = $1', [ticker]);
         } else {
-          // Partially sold — update shares
           await client.query(
             'UPDATE holdings SET shares = $1 WHERE ticker = $2',
             [newShares, ticker]
@@ -99,6 +93,30 @@ router.post('/events', async (req, res) => {
     res.status(500).json({ error: 'Failed to log stock event' });
   } finally {
     client.release();
+  }
+});
+
+// DELETE a holding
+router.delete('/holdings/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM holdings WHERE id = $1', [id]);
+    res.json({ message: 'Holding deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete holding' });
+  }
+});
+
+// DELETE a stock event
+router.delete('/events/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await pool.query('DELETE FROM stock_events WHERE id = $1', [id]);
+    res.json({ message: 'Event deleted' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to delete event' });
   }
 });
 
